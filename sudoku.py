@@ -48,16 +48,9 @@ class Grid:
         if grid:
             self.parse_grid(grid)
 
-        self.rows = [ self.cells[i] for i in range(9) ]
-        self.cols = [[ self.cells[i][col] for col in range(9) ] for i in range(9) ]
-
-        for col in self.cols:
-            print col
-            print
-
-        self.subgrids = [[ self.cells[row][col] for row in range(i, i + 3) for col in range(j, j + 3) ] for i in (0,3,6) for j in (0,3,6) ]
-
-        print self.subgrids[1]
+        self.rows = [ self.get_row(i) for i in range(9) ]
+        self.cols = [ self.get_col(i) for i in range(9) ]
+        self.subgrids = [ self.get_subgrid(i,j) for i in (0, 3, 6) for j in (0,3,6) ]
 
 
     def __str__(self):
@@ -79,26 +72,21 @@ class Grid:
 
     # manipulating cells
     def get_row(self, row):
-        #return [ self.cells[row][i] for i in range(9) ]
-        return self.rows[row]
+        return [ self.cells[row][i] for i in range(9) ]
+        #return self.rows[row]
 
     def get_col(self, col):
-        #return [ self.cells[i][col] for i in range(9) ]
-        return self.cols[col]
+        return [ self.cells[i][col] for i in range(9) ]
+        #return self.cols[col]
 
     def get_subgrid(self, row, col):
-        start_row = int(row / 3) 
-        start_col = int(col / 3) 
+        start_row = int(row / 3) * 3
+        start_col = int(col / 3) * 3
 
-        if row < 3:
-            subgrid = self.subgrids[start_col]
-        elif row < 6:
-            subgrid = self.subgrids[start_col + 3]
-        else:
-            subgrid = self.subgrids[start_col + 6]
+        #index = start_row * 3 + start_col
 
-        #subgrid = [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
-        #subgrid = self.subgrids[ start_row * 3 + start_col ]
+        subgrid = [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
+        #subgrid = self.subgrids[ index ]
         #print "Subgrid %d,%d:" % (start_row, start_col)
         #for i in range(9):
         #    print str(subgrid[i]).center(10),
@@ -169,7 +157,7 @@ class Grid:
 
             last_modified = modified
 
-            self.display()
+            #self.display()
             #print "modified: ",
             #for cell in modified:
             #    print "(%d,%d) " % (cell.row,cell.col),
@@ -183,7 +171,7 @@ class Grid:
                 print "\rPuzzle is NOT solved (%d iterations)" % iterations,
                 solved = False
 
-            raw_input("Press any key to continue...")
+            #raw_input("Press any key to continue...")
 
 
     # checking the grid
@@ -191,13 +179,12 @@ class Grid:
     def is_unit_solved(self, unit):
         for i in range(len(unit)):
             c = unit[i]
-            # if the value of this cell isn't finalized, it's not solved 
+            # if the value of this cell isn't finalized, move on
             if not c.get_value():
                 return False
 
             else:
                 for j in range(i + 1, len(unit)):
-                    # check for conflicts
                     #print "Checking %d against %d: %s %s" % (i, j, unit[i].get_value(), unit[j].get_value())
                     if unit[j].get_value() == c.get_value():
                         return False
