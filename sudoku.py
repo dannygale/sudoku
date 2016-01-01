@@ -1,224 +1,347 @@
 #!/usr/local/bin/python
 import itertools
+import cProfile
+import copy
+import random
+import logging
+
+global recursion_level
+
+recursion_level = 0
+
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
 
 class Cell:
-    def __init__(self, row, col, value = None):
-        if value != None:
+    def __init__(self, row, col, parent, value = None):
+        if value:
             self.possible_values = [value,]
+            self.value = value
         else:
-            self.possible_values = [1,2,3,4,5,6,7,8,9]
+            self.possible_values = set()
+            self.possible_values.update([1,2,3,4,5,6,7,8,9])
+            self.value = None
+
         self.row = row
         self.col = col
-
+        self.parent = parent
+    
     def __unicode__(self):
-
-        if self.possible_values == [1,2,3,4,5,6,7,8,9]:
-            return " "
+        if len(self.possible_values) == 9:
+            return ' '
         return "".join( str(c) for c in self.possible_values )
 
     def __str__(self):
         return self.__unicode__()
 
-
     def get_value(self):
-        if len(self.possible_values) == 1:
-            return self.possible_values[0]
-        else:
-            return None
-
+        return self.value
+    
     def set_value(self, value):
         if not value:
             return False
-
-        self.possible_values = [value,]
-
+    
+        self.value = value
+        self.possible_values = set([value,])
         return True
 
+
     def eliminate_value(self, value):
+        '''
+        Remove a value from the list of possible values.
+        If this cell is set to this value or this value is not in the list of possible values, return False.
+        Otherwise return True
+        '''
         if not value or value not in self.possible_values:
+            return True
+
+        if self.get_value() == value:
+            #print "Cell %d,%d already has value %d. Can't eliminate it" % (self.row, self.col, value)
+            return False
+        if len(self.possible_values) == 1:
+            #print "Can't remove last possible value from cell %d,%d" % (self.row, self.col)
             return False
 
+        # remove the value from this cell
         self.possible_values.remove(value)
+        # if this cell is down to only one possible value, assign it and attempt to remove it from the peers
+        if len(self.possible_values) == 1:
+            self.set_value(self.possible_values[0])
+            # try removing it from the peers
+            #print "Only one option remaining (%d) for cell %d,%d. Propagating elimination" % (self.get_value(), self.row, self.col)
+            return all( peer.eliminate_value( self.get_value() ) for peer in self.peers )
+
         return True
 
 
 class Grid:
     def __init__(self, grid = None):
-        self.cells=[[ Cell(row, col) for row in range(9)] for col in range(9)]
+        print "Initializing grid..."
+        self.cells=[[ Cell(row, col, self) for col in range(9) ] for row in range(9) ]
+
+        self.rows = [[ self.cells[row][i] for i in range(9)] for row in range(9) ]
+        self.cols = [[ self.cells[i][col] for i in range(9)] for col in range(9) ]
+
+        self.subgrids = []
+        for start_row in (0,3,6):
+            for start_col in (0,3,6):
+                #print "adding subgrid %d,%d" % (start_row, start_col)
+                self.subgrids.append(
+                        [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
+                        )
+
+        #print "%d subgrids" % len(self.subgrids)
+        #for sg in self.subgrids:
+        #    print sg
+
+        self.all_units = self.rows + self.cols + self.subgrids
+
+        self.all_cells = []
+        for row in range(9):
+            self.all_cells += self.cells[row] 
+
+        for cell in self.all_cells:
+            cell.peers = set(self.get_row(cell.row) + self.get_col(cell.col) + self.get_subgrid_for_cell(cell))#.remove(cell)
+            cell.peers.remove(cell)
+            #print "cell %d,%d has %d peers:" % (cell.row, cell.col, len(cell.peers))
+            #for c in cell.peers:
+            #    print " > %d,%d" % (c.row, c.col)
+
+
         if grid:
             self.parse_grid(grid)
-
-        self.rows = [ self.get_row(i) for i in range(9) ]
-        self.cols = [ self.get_col(i) for i in range(9) ]
-        self.subgrids = [ self.get_subgrid(i,j) for i in (0, 3, 6) for j in (0,3,6) ]
-
 
     def __str__(self):
         return self.__unicode__()
 
     def __unicode__(self):
-        width = max ( len ( str(self.cells[i][j]) ) for i in range(9) for j in range(9)) + 1
+        cells_in_conflict = self.find_conflicts()
+        width = 0
+        for i in range(9):
+            for j in range(9):
+                w = len(str(self.cells[i][j])) + 1
+                if cells_in_conflict and self.cells[i][j] in cells_in_conflict:
+                    w += 2
+                width = max(width, w)
 
         out=''
         for i in range(9):
             row = ''
             for j in range(9):
-                out += str(self.cells[i][j]).center(width)
+                cell = str(self.cells[i][j])
+                if cells_in_conflict and self.cells[i][j] in cells_in_conflict:
+                    cell = '-' + cell + '-'
+                out += cell.center(width)
                 if j in (2,5): out += "| "
             out += '\r\n'
             if i in (2, 5): out += ''.join(['-' * (width * 3 + 1)] * 3) + "\n"
-
+    
         return out
 
-    # manipulating cells
     def get_row(self, row):
-        return [ self.cells[row][i] for i in range(9) ]
-        #return self.rows[row]
+        return self.rows[row]
 
     def get_col(self, col):
-        return [ self.cells[i][col] for i in range(9) ]
-        #return self.cols[col]
+        return self.cols[col]
 
-    def get_subgrid(self, row, col):
-        start_row = int(row / 3) * 3
-        start_col = int(col / 3) * 3
+    def get_subgrid(self, subgrid):
+        return self.subgrids[subgrid]
 
-        #index = start_row * 3 + start_col
+    def get_subgrid_for_cell(self, cell):
+        return self.get_subgrid( int(cell.row / 3) * 3 + int(cell.col / 3) )
 
-        subgrid = [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
-        #subgrid = self.subgrids[ index ]
-        #print "Subgrid %d,%d:" % (start_row, start_col)
-        #for i in range(9):
-        #    print str(subgrid[i]).center(10),
-        #    if i % 3 == 2: print ""
-        #print ""
-        return subgrid
+    def set_cell(self, cell, value):
+        '''
+        Set the value for a cell. If it can't be done because it conflicts with
+        other cells in the row/col/subgrid of this cell or the value is not in 
+        the possible values for the cell, return False. Otherwise, return True
+        '''
+        for unit in self.get_units_for_cell(cell):
+            for c in unit:
+                if c.get_value() == value:
+                    return False
+        
+        if value not in cell.possible_values:
+            return False
+        
+        return cell.set_value(value)
 
-    def get_units_for_cell(self, cell):
-        return [ self.rows[cell.row], self.cols[cell.col], self.subgrids[int(cell.row / 3) * 3 + int(cell.col/3)] ]
 
-
-    # solving the grid
-    def solve_cell(self, cell):
-        modified = []
-        modified += self.eliminate_fixed(self.get_row(cell.row))
-        modified += self.eliminate_fixed(self.get_col(cell.col))
-        modified += self.eliminate_fixed(self.get_subgrid(cell.row, cell.col))
-
-        #print len(modified)
-
-        modified += self.find_only_location(self.get_row(cell.row))
-        modified += self.find_only_location(self.get_col(cell.col))
-        modified += self.find_only_location(self.get_subgrid(cell.row, cell.col))
-        #print len(modified)
-        modified = set(modified)
-        #print "solve_cell: len(modified) = %d" % len(modified)
-        return modified
-
-    def eliminate_fixed(self, unit):
-        modified = []
+    def reduce_unit(self, unit):
         for cell in unit:
-            if cell.get_value():
-                for c in unit:
-                    if c != cell: 
-                        if c.eliminate_value(cell.get_value()):
-                            modified.append(c)
-        #print "eliminate_fixed: len(modified) = %d" % len(modified)
-        return modified
+            val = cell.get_value()
+            if not val:
+                continue
 
-    def find_only_location(self, unit):
-        modified = []
-        for i in range(len(unit)):
-            for val in unit[i].possible_values:
-                if all( val not in unit[j].possible_values for j in range(i, len(unit))): 
-                    unit[i].set_value(val) 
-                    modified.append(unit[i])
+            for peer in unit:
+                if cell == peer:
                     continue
-
-        #print "find_only_location: len(modified) = %d" % len(modified)
-        return modified
-
-    def solve(self):
-        iterations = 0
-        solved = False
-
-        last_modified = set()
-        for i in range(9):
-            for j in range(9):
-                c = self.cells[i][j]
-                last_modified |= set(self.solve_cell(c))
-        while not solved:
-            iterations += 1
-            modified = set()
-            for cell in last_modified:
-                modified |= self.solve_cell(cell)
-
-            #print "main: len(modified): %d" % len(modified)
-
-            last_modified = modified
-
-            #self.display()
-            #print "modified: ",
-            #for cell in modified:
-            #    print "(%d,%d) " % (cell.row,cell.col),
-
-            #if len(modified) == 0:
-            if self.check_all():
-                print ""
-                print "Puzzle is SOLVED (%d iterations)" % iterations
-                solved = True
-            else:
-                print "\rPuzzle is NOT solved (%d iterations)" % iterations,
-                solved = False
-
-            #raw_input("Press any key to continue...")
-
-
-    # checking the grid
-
-    def is_unit_solved(self, unit):
-        for i in range(len(unit)):
-            c = unit[i]
-            # if the value of this cell isn't finalized, move on
-            if not c.get_value():
-                return False
-
-            else:
-                for j in range(i + 1, len(unit)):
-                    #print "Checking %d against %d: %s %s" % (i, j, unit[i].get_value(), unit[j].get_value())
-                    if unit[j].get_value() == c.get_value():
+                if val in peer.possible_values:
+                    if not peer.eliminate_value(val):
                         return False
 
         return True
 
-    def check_row(self, row):
-        return self.is_unit_solved(self.get_row(row))
 
-    def check_col(self, col):
-        return self.is_unit_solved(self.get_col(col))
+    def solve(self):
+        
+        self.reduce()
 
-    def check_subgrid(self, row, col):
-        return self.is_unit_solved(self.get_subgrid(row, col))
+        if self.search():
+            print self
+            return True
+        else:
+            print "No solution!"
+            return False
 
-    def check_cell(self, row, col):
-        return all(self.check_row(row), self.check_col(col), self.check_subgrid(row, col))
+    def reduce_from_cell(self, cell):
+        val = cell.get_value()
+        if not val:
+            return True
 
-    def check_all(self):
-        return all(self.check_row(r) for r in range(9)) and all(self.check_col(c) for c in range(9)) and all(self.check_subgrid(r, c) for r in (0,3,6) for c in (0, 3, 6))
+        #print "Reducing from cell %d,%d (%s)" % (cell.row, cell.col, cell)
 
-    
-    # input/output
-    def display(self):
-        print str(self)
+        for peer in cell.peers:
+            if val in peer.possible_values:
+                #print "Eliminating value %d from cell %d,%d (%s)" % (val, peer.row, peer.col, peer)
+                if not peer.eliminate_value(val):
+                    #print "Couldn't eliminate %d from cell %d,%d" % (val, peer.row, peer.col)
+                    return False
+
+        return True
+
+    def reduce(self):
+        return all (self.reduce_from_cell(cell) for cell in self.all_cells)
+
+
+    def get_unsolved_cells(self):
+        unsolved_cells = []
+
+        for cell in self.all_cells:
+            if not cell.get_value():
+                #print "adding %d,%d to unsolved cells" %(cell.row, cell.col)
+                unsolved_cells.append(cell)
+        # sort by increasing number of options
+        unsolved_cells.sort(key=lambda x: len(x.possible_values))
+
+        return unsolved_cells
+
+    def search(self, unsolved_cells = None):
+        global recursion_level 
+
+        # if no list of unsolved cells was provided, create one
+        if not unsolved_cells or len(unsolved_cells) == 0:
+            unsolved_cells = self.get_unsolved_cells()
+
+        if len(unsolved_cells) == 0:
+            if self.is_solved():
+                return True
+
+        cell = unsolved_cells[0]
+
+        #for cell in self.all_cells:
+        #if cell.get_value():
+        #    continue
+
+        #print "Working on cell %d,%d (%s)" % (cell.row, cell.col, cell)
+        # save the original possible values
+        original_possible_values = cell.possible_values[:]
+        unsolved_cells.remove(cell)
+
+        # try the possible values at random and continue to recurse
+        while len(cell.possible_values) > 0:
+            #print "recursion level = %d" % recursion_level
+            val = random.choice(list(cell.possible_values))
+            #val = cell.possible_values[0]
+
+            #print "Attempting %d in cell %d,%d (%s)" % (val, cell.row, cell.col, cell)
+
+            # make a copy to work on
+            g = copy.deepcopy(self)
+
+            # set the cell value
+            g_cell = g.cells[cell.row][cell.col]
+            g_cell.set_value(val)
+
+            # if we run into a conflict, fail back a level
+            if not g.reduce_from_cell(g_cell):
+                #print "Couldn't assign value %d to %d,%d due to conflict" % (val, cell.row, cell.col)
+                cell.possible_values.remove(val)
+                continue
+
+
+            #print g
+            #print "recursion level = %d" % recursion_level
+            #raw_input("Press enter...")
+
+
+            recursion_level += 1
+
+            # if we're solved, return True
+            if g.is_solved() or g.search(unsolved_cells):
+                #print "SOLVED"
+                #print g
+                self.cells = copy.deepcopy(g.cells)
+                return True
+            else:
+                #print "Conflict resulting from %d in cell %d,%d. Removing value %d from cell %d,%d" % (val, cell.row, cell.col, val, cell.row, cell.col)
+                cell.possible_values.remove(val)
+
+            recursion_level -= 1
+
+        # when we move to the next cell, restore the possible values here
+        #print "No more values for cell %d,%d. Restoring originals" % (cell.row, cell.col)
+        cell.possible_values = original_possible_values
+        #unsolved_cells.append(cell)
+
+        # we're out of things to try and no solution
+        #print "Out of options and no solution! Returning False"
+        return False
+
+    def is_unit_solved(self, unit):
+        for cell in unit:
+            val = cell.get_value()
+
+            # if this cell doesn't have a final value yet, we're not solved
+            if not val:
+                return False 
+
+            for peer in unit:
+                if cell != peer:
+                    if peer.get_value() == val:
+                        # conflict
+                        return False
+
+        return True
+
+
+    def is_solved(self):
+        return all(self.is_unit_solved(unit) for unit in self.all_units)
+        
+
+    def find_conflicts(self):
+        cells_in_conflict = set()
+        for cell in self.all_cells:
+            if cell.get_value() != None: # and cell not in cells_in_conflict:
+                for peer in cell.peers:
+                    if cell.get_value() == peer.get_value():
+                        cells_in_conflict.add(cell)
+                        cells_in_conflict.add(peer)
+
 
     def parse_grid(self, grid):
         if len(grid) != 81:
             print "Invalid grid (length %d)" % len(grid)
             return False
-
+        
+        for i in range(len(grid)):
+            self.cells[ int( i / 9 ) ][ i % 9 ].possible_values = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        
         for i in range(len(grid)):
             c = grid[i];
-
+            
             if c in '123456789':
                 self.cells[int(i/9)][i % 9].set_value(int(c))
             elif c in '.0':
@@ -227,15 +350,11 @@ class Grid:
                 print "Invalid grid character: %c" % c
                 return False
 
-        print "Grid parsed:"
+        print "Grid parsed"
         return True
-        
-
-import time
 
 grids = [
             "003020600900305001001806400008102900700000008006708200002609500800203009005010300",
-            #"4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......",
             "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......",
             "52...6.........7.13...........4..8..6......5...........418.........3..2...87.....",
             "6.....8.3.4.7.................5.4.7.3..2.....1.6.......2.....5.....8.6......1....",
@@ -333,15 +452,28 @@ grids = [
             "3...8.......7....51..............36...2..4....7...........6.13..452...........8..",
         ]
 
-if __name__ == '__main__':
+g = Grid(grids[1])
+#print g
+#g.reduce()
+#print g
+#cProfile.runctx('g.solve()', { 'g' : g }, None)
 
+import time
+
+def solve_all():
+    times = [ ]
     for grid in grids:
         g = Grid(grid)
         print g
-
         t_start = time.clock()
+        #cProfile.run('g.solve()')
         g.solve()
         t_end = time.clock()
-        print "solved in %.4f seconds" % (t_end - t_start)
-        g.display()
+        delta = t_end - t_start
+        times.append(delta)
+        print "%.4f seconds" % (delta)
+        print '---------------------'
+
+if __name__ == '__main__':
+    solve_all()
 
