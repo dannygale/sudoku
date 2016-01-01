@@ -283,7 +283,8 @@ class Grid:
             if g.is_solved() or g.search(unsolved_cells):
                 #print "SOLVED"
                 #print g
-                self.cells = copy.deepcopy(g.cells)
+                #self.cells = copy.deepcopy(g.cells)
+                self.cells = g.cells
                 return True
             else:
                 #print "Conflict resulting from %d in cell %d,%d. Removing value %d from cell %d,%d" % (val, cell.row, cell.col, val, cell.row, cell.col)
@@ -467,7 +468,8 @@ def solve_all():
         print g
         t_start = time.clock()
         #cProfile.run('g.solve()')
-        g.solve()
+        #g.solve()
+        cProfile.runctx('g.solve()', { 'g' : g }, None)
         t_end = time.clock()
         delta = t_end - t_start
         times.append(delta)
