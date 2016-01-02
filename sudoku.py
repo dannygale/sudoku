@@ -29,8 +29,8 @@ class Cell:
         self.parent = parent
     
     def __unicode__(self):
-#        if len(self.possible_values) == 9:
-#            return ' '
+        if not self.get_value():
+            return ' '
         return "".join( str(c) for c in self.possible_values )
 
     def __str__(self):
@@ -45,7 +45,7 @@ class Cell:
     
         self.value = value
         self.possible_values = set([value,])
-        return True
+        return all( peer.eliminate_value(self.get_value() ) for peer in self.get_peers() )
 
     def get_peers(self):
         return self.parent.get_peers(self)
@@ -487,19 +487,33 @@ g = Grid(grids[1])
 import time
 
 def solve_all():
-    times = [ ]
+    results = [ ]
+    solved = False
     for grid in grids:
         g = Grid(grid)
         print g
         t_start = time.clock()
-        cProfile.runctx('g.solve()', { 'g' : g }, None)
-        #g.solve()
+        #cProfile.runctx('solved = g.solve()', globals(), locals() )
+        solved = g.solve()
         t_end = time.clock()
         delta = t_end - t_start
-        times.append(delta)
         print "%.4f seconds" % (delta)
+        results.append({'solved': solved, 'time':delta })
         print '---------------------'
 
+    for i in range(len(results)):
+        if results[i]['solved']:
+            stat = 'SOLVED'
+        else:
+            stat = 'NOT SOLVED'
+        print "Puzzle %4d %s in %.4f seconds" % (i, stat, results[i]['time'])
+
+    total = sum ( result['time'] for result in results if result['solved'] )
+    print total
+
+    print "AVG: %.4f" % (float(sum ( result['time'] for result in results if result['solved'] )) / len([ result for result in results if result['solved'] ]))
+    print "MIN: %.4f" % (min ( result['time'] for result in results ))
+    print "MAX: %.4f" % (max ( result['time'] for result in results ))
 
 
 
