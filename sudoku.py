@@ -29,8 +29,8 @@ class Cell:
         self.parent = parent
     
     def __unicode__(self):
-        if len(self.possible_values) == 9:
-            return ' '
+#        if len(self.possible_values) == 9:
+#            return ' '
         return "".join( str(c) for c in self.possible_values )
 
     def __str__(self):
@@ -47,6 +47,9 @@ class Cell:
         self.possible_values = set([value,])
         return True
 
+    def get_peers(self):
+        return self.parent.get_peers(self)
+
 
     def eliminate_value(self, value):
         '''
@@ -60,7 +63,7 @@ class Cell:
         if self.get_value() == value:
             #print "Cell %d,%d already has value %d. Can't eliminate it" % (self.row, self.col, value)
             return False
-        if len(self.possible_values) == 1:
+        elif len(self.possible_values) == 1:
             #print "Can't remove last possible value from cell %d,%d" % (self.row, self.col)
             return False
 
@@ -71,7 +74,7 @@ class Cell:
             self.set_value(self.possible_values[0])
             # try removing it from the peers
             #print "Only one option remaining (%d) for cell %d,%d. Propagating elimination" % (self.get_value(), self.row, self.col)
-            return all( peer.eliminate_value( self.get_value() ) for peer in self.peers )
+            return all( peer.eliminate_value( self.get_value() ) for peer in self.get_peers() )
 
         return True
 
@@ -79,32 +82,32 @@ class Cell:
 class Grid:
     def __init__(self, grid = None):
         print "Initializing grid..."
-        self.cells=[[ Cell(row, col, self) for col in range(9) ] for row in range(9) ]
+        self.cells=[ Cell(row, col, self) for row in range(9) for col in range(9) ]
 
-        self.rows = [[ self.cells[row][i] for i in range(9)] for row in range(9) ]
-        self.cols = [[ self.cells[i][col] for i in range(9)] for col in range(9) ]
+        #self.rows = [[ self.cells[row][i] for i in range(9)] for row in range(9) ]
+        #self.cols = [[ self.cells[i][col] for i in range(9)] for col in range(9) ]
 
-        self.subgrids = []
-        for start_row in (0,3,6):
-            for start_col in (0,3,6):
-                #print "adding subgrid %d,%d" % (start_row, start_col)
-                self.subgrids.append(
-                        [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
-                        )
+        #self.subgrids = []
+        #for start_row in (0,3,6):
+        #    for start_col in (0,3,6):
+        #        #print "adding subgrid %d,%d" % (start_row, start_col)
+        #        self.subgrids.append(
+        #                [ self.cells[row][col] for row in range(start_row, start_row + 3) for col in range(start_col, start_col + 3) ]
+        #                )
 
         #print "%d subgrids" % len(self.subgrids)
         #for sg in self.subgrids:
         #    print sg
 
-        self.all_units = self.rows + self.cols + self.subgrids
+        #self.all_units = self.rows + self.cols + self.subgrids
 
-        self.all_cells = []
-        for row in range(9):
-            self.all_cells += self.cells[row] 
+        #self.all_cells = []
+        #for row in range(9):
+        #    self.all_cells += self.cells[row] 
 
-        for cell in self.all_cells:
-            cell.peers = set(self.get_row(cell.row) + self.get_col(cell.col) + self.get_subgrid_for_cell(cell))#.remove(cell)
-            cell.peers.remove(cell)
+        #for cell in self.get_all_cells():
+        #    cell.peers = set(self.get_row(cell.row) + self.get_col(cell.col) + self.get_subgrid_for_cell(cell))#.remove(cell)
+        #    cell.peers.remove(cell)
             #print "cell %d,%d has %d peers:" % (cell.row, cell.col, len(cell.peers))
             #for c in cell.peers:
             #    print " > %d,%d" % (c.row, c.col)
@@ -121,7 +124,7 @@ class Grid:
         width = 0
         for i in range(9):
             for j in range(9):
-                w = len(str(self.cells[i][j])) + 1
+                w = len(str(self.cells[i * 9 + j])) + 1
                 if cells_in_conflict and self.cells[i][j] in cells_in_conflict:
                     w += 2
                 width = max(width, w)
@@ -130,7 +133,7 @@ class Grid:
         for i in range(9):
             row = ''
             for j in range(9):
-                cell = str(self.cells[i][j])
+                cell = str(self.cells[i*9 + j])
                 if cells_in_conflict and self.cells[i][j] in cells_in_conflict:
                     cell = '-' + cell + '-'
                 out += cell.center(width)
@@ -141,16 +144,31 @@ class Grid:
         return out
 
     def get_row(self, row):
-        return self.rows[row]
+        #return self.rows[row]
+        return [ self.cells[row * 9 + i] for i in range(9) ]
 
     def get_col(self, col):
-        return self.cols[col]
+        #return self.cols[col]
+        return [ self.cells[ i * 9 + col ] for i in range(9) ]
 
     def get_subgrid(self, subgrid):
-        return self.subgrids[subgrid]
+        # subgrid = 1, we want [0-2][0-2]
+        # subgrid = 2, we want [0-2][3-5]
+        start_row = int(subgrid/3) * 3
+        start_col = (subgrid % 3) * 3
+        return [ self.cells[i * 9 + j] for i in range(start_row, start_row + 3) for j in range(start_col, start_col + 3) ]
 
     def get_subgrid_for_cell(self, cell):
         return self.get_subgrid( int(cell.row / 3) * 3 + int(cell.col / 3) )
+
+    def get_all_cells(self):
+        #all_cells = []
+        #for row in range(9):
+        #    all_cells += self.cells[row] 
+        return self.cells
+
+    def get_all_units(self):
+        return [ self.get_row(i) + self.get_col(i) + self.get_subgrid(i) for i in range(9) ]
 
     def set_cell(self, cell, value):
         '''
@@ -168,6 +186,19 @@ class Grid:
         
         return cell.set_value(value)
 
+    def get_units_for_cell(self, cell):
+        units = []
+        units += self.get_row(cell.row) 
+        units += self.get_col(cell.col)
+        units += self.get_subgrid_for_cell(cell)
+        return units
+        #return [ self.get_row(cell.row) + self.get_col(cell.col) + self.get_subgrid_for_cell(cell) ]
+
+    def get_peers(self, cell):
+        peers = set(self.get_units_for_cell(cell))
+        if cell in peers:
+            peers.remove(cell)
+        return peers
 
     def reduce_unit(self, unit):
         for cell in unit:
@@ -186,7 +217,6 @@ class Grid:
 
 
     def solve(self):
-        
         self.reduce()
 
         if self.search():
@@ -203,7 +233,7 @@ class Grid:
 
         #print "Reducing from cell %d,%d (%s)" % (cell.row, cell.col, cell)
 
-        for peer in cell.peers:
+        for peer in self.get_peers(cell):
             if val in peer.possible_values:
                 #print "Eliminating value %d from cell %d,%d (%s)" % (val, peer.row, peer.col, peer)
                 if not peer.eliminate_value(val):
@@ -213,13 +243,13 @@ class Grid:
         return True
 
     def reduce(self):
-        return all (self.reduce_from_cell(cell) for cell in self.all_cells)
+        return all (self.reduce_from_cell(cell) for cell in self.get_all_cells())
 
 
     def get_unsolved_cells(self):
         unsolved_cells = []
 
-        for cell in self.all_cells:
+        for cell in self.get_all_cells():
             if not cell.get_value():
                 #print "adding %d,%d to unsolved cells" %(cell.row, cell.col)
                 unsolved_cells.append(cell)
@@ -236,8 +266,7 @@ class Grid:
             unsolved_cells = self.get_unsolved_cells()
 
         if len(unsolved_cells) == 0:
-            if self.is_solved():
-                return True
+            return True
 
         cell = unsolved_cells[0]
 
@@ -253,8 +282,8 @@ class Grid:
         # try the possible values at random and continue to recurse
         while len(cell.possible_values) > 0:
             #print "recursion level = %d" % recursion_level
-            val = random.choice(list(cell.possible_values))
-            #val = cell.possible_values[0]
+            #val = random.choice(list(cell.possible_values))
+            val = cell.possible_values[0]
 
             #print "Attempting %d in cell %d,%d (%s)" % (val, cell.row, cell.col, cell)
 
@@ -262,7 +291,7 @@ class Grid:
             g = copy.deepcopy(self)
 
             # set the cell value
-            g_cell = g.cells[cell.row][cell.col]
+            g_cell = g.cells[cell.row * 9 + cell.col]
             g_cell.set_value(val)
 
             # if we run into a conflict, fail back a level
@@ -283,7 +312,6 @@ class Grid:
             if g.is_solved() or g.search(unsolved_cells):
                 #print "SOLVED"
                 #print g
-                #self.cells = copy.deepcopy(g.cells)
                 self.cells = g.cells
                 return True
             else:
@@ -319,14 +347,15 @@ class Grid:
 
 
     def is_solved(self):
-        return all(self.is_unit_solved(unit) for unit in self.all_units)
+        return all(self.is_unit_solved(unit) for unit in self.get_all_units())
         
 
     def find_conflicts(self):
         cells_in_conflict = set()
-        for cell in self.all_cells:
+        for cell in self.get_all_cells():
+            #print len(self.get_all_cells())
             if cell.get_value() != None: # and cell not in cells_in_conflict:
-                for peer in cell.peers:
+                for peer in self.get_peers(cell):
                     if cell.get_value() == peer.get_value():
                         cells_in_conflict.add(cell)
                         cells_in_conflict.add(peer)
@@ -338,13 +367,13 @@ class Grid:
             return False
         
         for i in range(len(grid)):
-            self.cells[ int( i / 9 ) ][ i % 9 ].possible_values = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+            self.cells[ i ].possible_values = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         
         for i in range(len(grid)):
             c = grid[i];
             
             if c in '123456789':
-                self.cells[int(i/9)][i % 9].set_value(int(c))
+                self.cells[i].set_value(int(c))
             elif c in '.0':
                 pass
             else:
@@ -467,14 +496,16 @@ def solve_all():
         g = Grid(grid)
         print g
         t_start = time.clock()
-        #cProfile.run('g.solve()')
-        #g.solve()
         cProfile.runctx('g.solve()', { 'g' : g }, None)
+        #g.solve()
         t_end = time.clock()
         delta = t_end - t_start
         times.append(delta)
         print "%.4f seconds" % (delta)
         print '---------------------'
+
+
+
 
 if __name__ == '__main__':
     solve_all()
