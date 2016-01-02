@@ -270,11 +270,8 @@ class Grid:
 
         cell = unsolved_cells[0]
 
-        #for cell in self.all_cells:
-        #if cell.get_value():
-        #    continue
-
         #print "Working on cell %d,%d (%s)" % (cell.row, cell.col, cell)
+
         # save the original possible values
         original_possible_values = cell.possible_values[:]
         unsolved_cells.remove(cell)
@@ -294,7 +291,7 @@ class Grid:
             g_cell = g.cells[cell.row * 9 + cell.col]
             g_cell.set_value(val)
 
-            # if we run into a conflict, fail back a level
+            # if we run into a conflict, try another value
             if not g.reduce_from_cell(g_cell):
                 #print "Couldn't assign value %d to %d,%d due to conflict" % (val, cell.row, cell.col)
                 cell.possible_values.remove(val)
@@ -310,8 +307,6 @@ class Grid:
 
             # if we're solved, return True
             if g.is_solved() or g.search(unsolved_cells):
-                #print "SOLVED"
-                #print g
                 self.cells = g.cells
                 return True
             else:
@@ -337,6 +332,7 @@ class Grid:
             if not val:
                 return False 
 
+            # if we find a conflict, return False
             for peer in unit:
                 if cell != peer:
                     if peer.get_value() == val:
