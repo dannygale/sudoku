@@ -478,23 +478,20 @@ grids = [
             "3...8.......7....51..............36...2..4....7...........6.13..452...........8..",
         ]
 
-g = Grid(grids[1])
-#print g
-#g.reduce()
-#print g
-#cProfile.runctx('g.solve()', { 'g' : g }, None)
 
 import time
 
 def solve_all():
     results = [ ]
-    solved = False
+    solved = True
     for grid in grids:
         g = Grid(grid)
         print g
         t_start = time.clock()
-        #cProfile.runctx('solved = g.solve()', globals(), locals() )
-        solved = g.solve()
+        prof = cProfile.Profile()
+        #solved = prof.runcall('g.solve()', globals(), locals() )
+        cProfile.runctx('solved = g.solve()', globals(), locals() )
+        #solved = g.solve()
         t_end = time.clock()
         delta = t_end - t_start
         print "%.4f seconds" % (delta)
