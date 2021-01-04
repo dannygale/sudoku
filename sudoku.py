@@ -81,7 +81,7 @@ class Cell:
 
 class Grid:
     def __init__(self, grid = None):
-        print "Initializing grid..."
+        print("Initializing grid...")
         self.cells=[ Cell(row, col, self) for row in range(9) for col in range(9) ]
 
         #self.rows = [[ self.cells[row][i] for i in range(9)] for row in range(9) ]
@@ -220,10 +220,10 @@ class Grid:
         self.reduce()
 
         if self.search():
-            print self
+            print(self)
             return True
         else:
-            print "No solution!"
+            print("No solution!")
             return False
 
     def reduce_from_cell(self, cell):
@@ -359,7 +359,7 @@ class Grid:
 
     def parse_grid(self, grid):
         if len(grid) != 81:
-            print "Invalid grid (length %d)" % len(grid)
+            print("Invalid grid (length %d)" % len(grid))
             return False
         
         for i in range(len(grid)):
@@ -373,10 +373,10 @@ class Grid:
             elif c in '.0':
                 pass
             else:
-                print "Invalid grid character: %c" % c
+                print("Invalid grid character: %c" % c)
                 return False
 
-        print "Grid parsed"
+        print("Grid parsed")
         return True
 
 grids = [
@@ -486,7 +486,7 @@ def solve_all():
     solved = True
     for grid in grids:
         g = Grid(grid)
-        print g
+        print(g)
         t_start = time.clock()
         prof = cProfile.Profile()
         #solved = prof.runcall('g.solve()', globals(), locals() )
@@ -494,23 +494,23 @@ def solve_all():
         #solved = g.solve()
         t_end = time.clock()
         delta = t_end - t_start
-        print "%.4f seconds" % (delta)
+        print("%.4f seconds" % (delta))
         results.append({'solved': solved, 'time':delta })
-        print '---------------------'
+        print('---------------------')
 
     for i in range(len(results)):
         if results[i]['solved']:
             stat = 'SOLVED'
         else:
             stat = 'NOT SOLVED'
-        print "Puzzle %4d %s in %.4f seconds" % (i, stat, results[i]['time'])
+        print("Puzzle %4d %s in %.4f seconds" % (i, stat, results[i]['time']))
 
     total = sum ( result['time'] for result in results if result['solved'] )
-    print total
+    print(total)
 
-    print "AVG: %.4f" % (float(sum ( result['time'] for result in results if result['solved'] )) / len([ result for result in results if result['solved'] ]))
-    print "MIN: %.4f" % (min ( result['time'] for result in results ))
-    print "MAX: %.4f" % (max ( result['time'] for result in results ))
+    print("AVG: %.4f" % (float(sum ( result['time'] for result in results if result['solved'] )) / len([ result for result in results if result['solved'] ])))
+    print("MIN: %.4f" % (min ( result['time'] for result in results )))
+    print("MAX: %.4f" % (max ( result['time'] for result in results )))
 
 
 
